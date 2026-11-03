@@ -227,6 +227,7 @@ class BrandResource extends Resource
             ->defaultPaginationPageOption(25)
             ->columns([
                 Tables\Columns\ImageColumn::make('image')
+                    ->disk('public')
                     ->circular()
                     ->size(30)
                     ->defaultImageUrl(url('/images/default-brand.svg'))
