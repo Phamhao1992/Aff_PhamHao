@@ -172,7 +172,7 @@ class CampaignImporter extends Importer
         }
         
         // Set template dựa trên type nếu chưa có hoặc không hợp lệ
-        if (empty($this->record->template) || !in_array($this->record->template, ['template1', 'template2', 'template3', 'template_key'])) {
+        if (empty($this->record->template) || !in_array($this->record->template, ['template1', 'template2', 'template3', 'template4', 'template_key'])) {
             $this->record->template = $this->record->type === 'key' ? 'template_key' : 'template1';
         }
         

@@ -16,7 +16,7 @@ class MagazineLayout
 
         $template = (string) request()->attributes->get('landing_template', 'template1');
 
-        return in_array($template, ['template1', 'template2', 'template3'], true);
+        return in_array($template, ['template1', 'template2', 'template3', 'template4'], true);
     }
 
     /** Chuẩn hóa nhãn menu (vd: Review cũ → Blog). */

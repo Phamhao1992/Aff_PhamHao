@@ -172,6 +172,7 @@ class CampaignResource extends Resource
                                     'template1' => 'Template 1 (Coupon)',
                                     'template2' => 'Template 2 (Coupon)',
                                     'template3' => 'Template 3 (Coupon)',
+                                    'template4' => 'Template 4 (Coupon)',
                                 ];
                             })
                             ->required()

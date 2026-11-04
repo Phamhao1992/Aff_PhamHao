@@ -265,7 +265,11 @@ class BrandResource extends Resource
                     ->label('User')
                     ->options(fn (): array => User::query()->orderBy('name')->pluck('name', 'id')->toArray())
                     ->searchable()
-                    ->visible(fn (): bool => (bool) (Filament::auth()->user()?->isAdmin())),
+                    ->visible(function (): bool {
+                        $user = Filament::auth()->user();
+
+                        return $user instanceof User && $user->isAdmin();
+                    }),
                 Tables\Filters\SelectFilter::make('approved')
                     ->label('Duyệt bài')
                     ->options([
