@@ -134,4 +134,16 @@ class AdminSettings
 
         return asset('storage/' . ltrim($path, '/'));
     }
+
+    /** Google Ads / GTM / meta verification — chèn trước </head>. */
+    public static function trackingHeadCode(): string
+    {
+        return trim((string) static::get('tracking_head_code', ''));
+    }
+
+    /** Snippet noscript / body — chèn ngay sau <body>. */
+    public static function trackingBodyCode(): string
+    {
+        return trim((string) static::get('tracking_body_code', ''));
+    }
 }

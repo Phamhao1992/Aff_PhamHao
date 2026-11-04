@@ -2293,9 +2293,11 @@
             }
         }
     </style>
+    @include('partials.tracking-head')
 </head>
 
 <body class="landing-coupon">
+@include('partials.tracking-body')
     @include('partials.site-header')
     <div class="shell">
         <div class="page-panel">

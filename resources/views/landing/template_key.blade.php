@@ -267,8 +267,10 @@
             animation: fadeInUp 0.6s ease-out;
         }
     </style>
+    @include('partials.tracking-head')
 </head>
 <body>
+@include('partials.tracking-body')
     <div class="page-wrapper">
         <div class="container">
             <header class="header">

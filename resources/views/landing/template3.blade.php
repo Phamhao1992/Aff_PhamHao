@@ -1011,8 +1011,10 @@
             .staff-pick-badge { display: none; }
         }
     </style>
+    @include('partials.tracking-head')
 </head>
 <body class="landing-coupon">
+@include('partials.tracking-body')
 @include('partials.site-header')
 
 <div class="t3-store-banner">

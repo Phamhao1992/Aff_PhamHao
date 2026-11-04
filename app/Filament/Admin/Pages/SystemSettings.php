@@ -74,6 +74,8 @@ class SystemSettings extends Page implements HasForms
             'seo_title_suffix' => (string) AdminSettings::get('seo_title_suffix', '- ' . config('app.name')),
             'seo_meta_description_default' => (string) AdminSettings::get('seo_meta_description_default', 'Best coupons, deals and store reviews.'),
             'seo_og_image_default' => (string) AdminSettings::get('seo_og_image_default', ''),
+            'tracking_head_code' => (string) AdminSettings::get('tracking_head_code', ''),
+            'tracking_body_code' => (string) AdminSettings::get('tracking_body_code', ''),
         ]);
     }
 
@@ -187,6 +189,30 @@ class SystemSettings extends Page implements HasForms
                             ->maxLength(500),
                     ])
                     ->columns(1),
+                Section::make('Tracking / Meta Tag')
+                    ->description('Dán mã Google Ads, Google Tag Manager, meta xác minh site. Mã được chèn trên toàn bộ trang public (trang chủ, blog, landing).')
+                    ->schema([
+                        Textarea::make('tracking_head_code')
+                            ->label('Mã trong <head>')
+                            ->rows(10)
+                            ->placeholder('<script async src="https://www.googletagmanager.com/gtag/js?id=AW-XXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag(\'js\', new Date());
+  gtag(\'config\', \'AW-XXXXXXXXX\');
+</script>')
+                            ->helperText('Google Ads / gtag.js / GTM phần head / thẻ meta verification. Chèn ngay trước </head>.')
+                            ->columnSpanFull(),
+                        Textarea::make('tracking_body_code')
+                            ->label('Mã ngay sau <body> (tuỳ chọn)')
+                            ->rows(6)
+                            ->placeholder('<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-XXXX"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>')
+                            ->helperText('Dùng khi Google yêu cầu snippet noscript ngay sau thẻ body mở.')
+                            ->columnSpanFull(),
+                    ]),
                 Section::make('Thiết lập chung')
                     ->schema([
                         TextInput::make('site_contact_email')
@@ -248,6 +274,8 @@ class SystemSettings extends Page implements HasForms
         AdminSettings::set('seo_title_suffix', trim((string) ($data['seo_title_suffix'] ?? ('- ' . config('app.name')))));
         AdminSettings::set('seo_meta_description_default', trim((string) ($data['seo_meta_description_default'] ?? 'Best coupons, deals and store reviews.')));
         AdminSettings::set('seo_og_image_default', trim((string) ($data['seo_og_image_default'] ?? '')));
+        AdminSettings::set('tracking_head_code', (string) ($data['tracking_head_code'] ?? ''));
+        AdminSettings::set('tracking_body_code', (string) ($data['tracking_body_code'] ?? ''));
 
         $this->mount();
 

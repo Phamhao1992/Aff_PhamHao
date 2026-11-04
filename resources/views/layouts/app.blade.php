@@ -72,6 +72,7 @@
         ];
     @endphp
     <script type="application/ld+json">{{ json_encode($organizationSchema) }}</script>
+    @include('partials.tracking-head')
     @stack('head')
     <style>
         :root {
@@ -240,6 +241,7 @@
     @stack('styles')
 </head>
 <body @if($usesMagazineChrome) class="magazine-site" @endif>
+@include('partials.tracking-body')
     @include('partials.site-header')
 
     <main>

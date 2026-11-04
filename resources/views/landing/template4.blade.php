@@ -1256,8 +1256,10 @@
             .t4-coupon-cta { justify-content: center; padding: 0 16px 16px; }
         }
     </style>
+    @include('partials.tracking-head')
 </head>
 <body class="landing-coupon t4-page">
+@include('partials.tracking-body')
 @include('partials.site-header')
 
 @php
