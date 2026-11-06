@@ -20,6 +20,10 @@ class BlockPublicIpsMiddleware
             return $next($request);
         }
 
+        if (\App\Models\PageView::isGoogleCrawler($request->userAgent())) {
+            return $next($request);
+        }
+
         $ip = app(ClientIpService::class)->getClientIp($request);
         if (BlockedIp::isBlockedFromPublic($ip)) {
             abort(403, 'Quyền truy cập bị từ chối.');

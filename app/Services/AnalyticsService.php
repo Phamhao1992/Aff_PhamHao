@@ -24,7 +24,8 @@ class AnalyticsService
             return null;
         }
         $userId = $campaign->brand?->user_id;
-        if ($this->shouldAutoBlockForRateLimit($ip, $userId, $campaign, 'view')) {
+        if (! PageView::isGoogleCrawler($request->userAgent())
+            && $this->shouldAutoBlockForRateLimit($ip, $userId, $campaign, 'view')) {
             return null;
         }
         if (BlockedIp::isBlocked($ip, $userId)) {
@@ -70,7 +71,8 @@ class AnalyticsService
             return null;
         }
         $userId = $campaign->brand?->user_id;
-        if ($this->shouldAutoBlockForRateLimit($ip, $userId, $campaign, 'click')) {
+        if (! PageView::isGoogleCrawler($request->userAgent())
+            && $this->shouldAutoBlockForRateLimit($ip, $userId, $campaign, 'click')) {
             return null;
         }
         if (BlockedIp::isBlocked($ip, $userId)) {

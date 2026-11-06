@@ -121,8 +121,26 @@ class PageView extends Model
         return 'Other';
     }
 
+    /** Googlebot / AdsBot — không chặn trang, không auto-block IP. */
+    public static function isGoogleCrawler(?string $userAgent): bool
+    {
+        if (empty($userAgent)) {
+            return false;
+        }
+
+        $ua = strtolower($userAgent);
+
+        return str_contains($ua, 'googlebot')
+            || str_contains($ua, 'adsbot-google')
+            || str_contains($ua, 'mediapartners-google')
+            || str_contains($ua, 'apis-google')
+            || str_contains($ua, 'feedfetcher-google')
+            || str_contains($ua, 'google-inspectiontool')
+            || str_contains($ua, 'storebot-google');
+    }
+
     /**
-     * Detect whether a request comes from a bot/crawler (including Google, etc.).
+     * Detect whether a request comes from a bot/crawler (for stats only).
      */
     public static function isBot(?string $userAgent): bool
     {
@@ -132,8 +150,7 @@ class PageView extends Model
 
         $ua = strtolower($userAgent);
 
-        // Google crawlers / fetchers thường có "google" trong UA nhưng không lúc nào cũng có "bot"
-        if (str_contains($ua, 'google')) {
+        if (self::isGoogleCrawler($userAgent)) {
             return true;
         }
 
