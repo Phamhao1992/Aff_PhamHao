@@ -24,8 +24,6 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $documentTitle }}</title>
     <meta name="description" content="{{ $metaDescription }}">
-    <meta name="verify-admitad" content="4455f2e7bb" />
-    <meta name='impact-site-verification' value='35f2fb10-d495-4208-b451-b9f1e79b72a9'>
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -279,17 +277,19 @@
     @include('partials.back-to-top')
 
     @stack('scripts')
+    @if(config('app.ga4_id'))
     <script>
     window.addEventListener('load', function () {
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-        gtag('config', 'G-FF4K1DWWT7');
+        gtag('config', @json(config('app.ga4_id')));
         var s = document.createElement('script');
         s.async = true;
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-FF4K1DWWT7';
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + @json(config('app.ga4_id'));
         document.head.appendChild(s);
     }, { once: true });
     </script>
+    @endif
 </body>
 </html>

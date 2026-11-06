@@ -62,6 +62,7 @@ return [
     'youtube_url' => env('YOUTUBE_URL', ''),
     'facebook_url' => env('FACEBOOK_URL', ''),
     'site_tagline' => env('SITE_TAGLINE', 'Smart News & Hot Deals – Save More Daily'),
+    'ga4_id' => env('GOOGLE_ANALYTICS_ID', ''),
 
     /*
     |--------------------------------------------------------------------------

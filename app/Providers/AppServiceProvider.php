@@ -43,4 +43,3 @@ class AppServiceProvider extends ServiceProvider
         BlockedIp::observe(ActivityLogObserver::class);
     }
 }
-
