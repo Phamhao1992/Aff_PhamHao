@@ -9,16 +9,20 @@ use App\Models\Campaign;
 use App\Models\Category;
 use App\Models\User;
 use App\Services\BlogApifyImageService;
+use App\Services\BrandIntroBlogCandidateService;
 use App\Services\GeminiBlogService;
 use App\Support\AdminSettings;
 use App\Support\AutoBlogSettings;
 use Filament\Actions;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class ListBlogs extends ListRecords
@@ -279,6 +283,156 @@ class ListBlogs extends ListRecords
 
                     $this->redirect(BlogResource::getUrl('edit', ['record' => $blog]));
                 }),
+            Actions\Action::make('createStoreBlog')
+                ->label('Tạo bài viết cho cửa hàng')
+                ->icon('heroicon-o-building-storefront')
+                ->color('primary')
+                ->modalHeading('Tạo bài viết cho cửa hàng')
+                ->modalDescription('Thống kê cửa hàng đã có / chưa có bài. Có thể chọn cửa hàng chưa có bài, hoặc cửa hàng đã có bài để viết thêm.')
+                ->modalWidth('4xl')
+                ->modalSubmitActionLabel('Tạo bài AI')
+                ->modalSubmitAction(function ($action) {
+                    $coverage = $this->storeBlogCoverage();
+                    if ($coverage['with']->isEmpty() && $coverage['without']->isEmpty()) {
+                        return false;
+                    }
+
+                    return $action;
+                })
+                ->form(function (): array {
+                    $coverage = $this->storeBlogCoverage();
+                    $brandLabel = fn (Brand $b): string => $b->name.($b->domain ? ' ('.$b->domain.')' : '');
+
+                    return [
+                        Placeholder::make('store_stats')
+                            ->label('Thống kê')
+                            ->content(new HtmlString(
+                                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+                                .'<div style="padding:12px 14px;border:1px solid #bbf7d0;border-radius:8px;background:#f0fdf4">'
+                                .'<div style="font-size:13px;color:#15803d">Đã có bài viết</div>'
+                                .'<div style="font-size:22px;font-weight:700;color:#14532d">'.$coverage['with']->count().' cửa hàng</div>'
+                                .'</div>'
+                                .'<div style="padding:12px 14px;border:1px solid #fed7aa;border-radius:8px;background:#fff7ed">'
+                                .'<div style="font-size:13px;color:#c2410c">Chưa có bài viết</div>'
+                                .'<div style="font-size:22px;font-weight:700;color:#9a3412">'.$coverage['without']->count().' cửa hàng</div>'
+                                .'</div></div>'
+                            )),
+                        CheckboxList::make('brand_ids_without')
+                            ->label('Chọn cửa hàng chưa có bài')
+                            ->options($coverage['without']->mapWithKeys(
+                                fn (Brand $b): array => [$b->id => $brandLabel($b)]
+                            )->all())
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->columns(2)
+                            ->helperText('Viết bài giới thiệu đầu tiên cho cửa hàng.')
+                            ->visible($coverage['without']->isNotEmpty()),
+                        CheckboxList::make('brand_ids_with')
+                            ->label('Chọn cửa hàng đã có bài — viết thêm')
+                            ->options($coverage['with']->mapWithKeys(
+                                fn (Brand $b): array => [$b->id => $brandLabel($b)]
+                            )->all())
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->columns(2)
+                            ->helperText('Tạo thêm bài mới (góc viết khác), không ghi đè bài cũ. Tối đa 5 cửa hàng mỗi lần, gồm cả hai danh sách.')
+                            ->visible($coverage['with']->isNotEmpty()),
+                        Placeholder::make('none_left')
+                            ->visible($coverage['with']->isEmpty() && $coverage['without']->isEmpty())
+                            ->content('Không có cửa hàng đủ điều kiện (cần chiến dịch + affiliate URL).'),
+                    ];
+                })
+                ->action(function (array $data): void {
+                    @set_time_limit(300);
+
+                    $picker = app(BrandIntroBlogCandidateService::class);
+                    $coverage = $picker->storeIntroCoverage();
+                    $allowed = $coverage['with']->pluck('id')
+                        ->merge($coverage['without']->pluck('id'))
+                        ->map(fn ($id): int => (int) $id)
+                        ->all();
+                    $ids = array_values(array_unique(array_intersect(
+                        array_values(array_filter(array_map(
+                            'intval',
+                            array_merge($data['brand_ids_without'] ?? [], $data['brand_ids_with'] ?? [])
+                        ))),
+                        $allowed
+                    )));
+
+                    if ($ids === []) {
+                        Notification::make()
+                            ->title('Chưa chọn cửa hàng')
+                            ->body('Hãy chọn ít nhất một cửa hàng (chưa có bài hoặc đã có bài để viết thêm).')
+                            ->warning()
+                            ->send();
+
+                        return;
+                    }
+
+                    if (AdminSettings::geminiApiKeys() === []) {
+                        Notification::make()
+                            ->title('Lỗi cấu hình')
+                            ->body('Gemini API key chưa được cấu hình trong Cài đặt hệ thống.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    $ids = array_slice($ids, 0, 5);
+                    $createdBlogs = [];
+                    $failed = [];
+                    $gemini = app(GeminiBlogService::class);
+                    $withIds = $coverage['with']->pluck('id')->map(fn ($id): int => (int) $id)->all();
+
+                    foreach ($ids as $brandId) {
+                        $brand = Brand::query()->with('category')->whereKey($brandId)->first();
+                        if (! $brand) {
+                            $failed[] = '#'.$brandId;
+
+                            continue;
+                        }
+
+                        $campaign = $picker->pickCampaignForStoreBlog($brand);
+                        if (! $campaign) {
+                            $failed[] = $brand->name.' (không có chiến dịch affiliate)';
+
+                            continue;
+                        }
+
+                        $extras = AutoBlogSettings::mergeExtras([]);
+                        if (in_array((int) $brand->id, $withIds, true)) {
+                            $extras['idea'] = trim((string) ($extras['idea'] ?? '')."\n"
+                                .'Write an additional article about this store with a fresh angle. Do not repeat a generic store intro. Focus on current deals, shopping tips, or a different useful angle.');
+                        }
+
+                        $blog = $this->createStoreIntroBlog($gemini, $brand, $campaign, $extras);
+                        if ($blog) {
+                            $createdBlogs[] = $blog;
+                        } else {
+                            $failed[] = $brand->name.': '.($gemini->lastError ?? 'AI lỗi');
+                        }
+                    }
+
+                    if ($createdBlogs !== []) {
+                        Notification::make()
+                            ->title('Đã tạo '.count($createdBlogs).' bài viết cửa hàng')
+                            ->body(collect($createdBlogs)->pluck('title')->implode("\n"))
+                            ->success()
+                            ->send();
+                    }
+                    if ($failed !== []) {
+                        Notification::make()
+                            ->title('Một số cửa hàng không tạo được')
+                            ->body(implode("\n", $failed))
+                            ->warning()
+                            ->send();
+                    }
+
+                    if (count($createdBlogs) === 1) {
+                        $this->redirect(BlogResource::getUrl('edit', ['record' => $createdBlogs[0]]));
+                    }
+                }),
             Actions\CreateAction::make()
                 ->label('Thêm blog'),
         ];
@@ -350,5 +504,53 @@ class ListBlogs extends ListRecords
         }
 
         return (string) (config('default_categories.names.0') ?? 'General');
+    }
+
+    /**
+     * @return array{with: \Illuminate\Support\Collection<int, Brand>, without: \Illuminate\Support\Collection<int, Brand>}
+     */
+    protected function storeBlogCoverage(): array
+    {
+        static $cached = null;
+
+        return $cached ??= app(BrandIntroBlogCandidateService::class)->storeIntroCoverage();
+    }
+
+    /**
+     * @param  array<string, mixed>  $extras
+     */
+    protected function createStoreIntroBlog(GeminiBlogService $gemini, Brand $brand, Campaign $campaign, array $extras): ?Blog
+    {
+        $categoryLabel = $this->resolveBrandCategoryLabel($brand);
+        $result = $gemini->generateBrandIntroBlog($brand, $campaign, $categoryLabel, $extras);
+        if (! $result) {
+            return null;
+        }
+
+        $searchQuery = trim($brand->name ?: (string) ($brand->domain ?? $campaign->title));
+        if ($searchQuery !== '') {
+            $result = app(BlogApifyImageService::class)->enrich($result, $searchQuery, $categoryLabel);
+        }
+
+        $campaign->loadMissing('couponItems');
+        $result['content'] = $gemini->ensureStoreBlogCouponSection(
+            (string) ($result['content'] ?? ''),
+            $campaign,
+        );
+
+        $author = User::where('is_admin', true)->first() ?? User::first();
+
+        return Blog::create([
+            'user_id' => $author?->id,
+            'campaign_id' => $campaign->id,
+            'intro_type' => 'store',
+            'title' => $result['title'],
+            'category' => $categoryLabel,
+            'content' => $result['content'],
+            'featured_image' => $result['featured_image'] ?? null,
+            'images' => ! empty($result['images']) ? $result['images'] : null,
+            'is_published' => true,
+            'views_count' => 0,
+        ]);
     }
 }

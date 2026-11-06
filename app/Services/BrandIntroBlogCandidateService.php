@@ -212,4 +212,97 @@ class BrandIntroBlogCandidateService
             ->orderBy('campaigns.id')
             ->first();
     }
+
+    /**
+     * Ưu tiên campaign chưa có blog intro; nếu brand đã có bài thì vẫn lấy campaign engagement cao nhất để viết thêm.
+     */
+    public function pickCampaignForStoreBlog(Brand $brand): ?Campaign
+    {
+        $usedCampaignIds = Blog::query()
+            ->where('intro_type', 'store')
+            ->whereNotNull('campaign_id')
+            ->pluck('campaign_id')
+            ->all();
+
+        $pvSub = DB::table('page_views')
+            ->select('campaign_id', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('campaign_id');
+
+        $ckSub = DB::table('clicks')
+            ->whereNull('deleted_at')
+            ->select('campaign_id', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('campaign_id');
+
+        $unused = Campaign::query()
+            ->leftJoinSub($pvSub, 'pv', 'pv.campaign_id', '=', 'campaigns.id')
+            ->leftJoinSub($ckSub, 'ck', 'ck.campaign_id', '=', 'campaigns.id')
+            ->where('campaigns.brand_id', $brand->id)
+            ->whereNull('campaigns.deleted_at')
+            ->whereNotNull('campaigns.affiliate_url')
+            ->where('campaigns.affiliate_url', '!=', '')
+            ->when(app()->environment('production'), fn ($q) => $q->where('campaigns.status', 'active'))
+            ->when($usedCampaignIds !== [], fn ($q) => $q->whereNotIn('campaigns.id', $usedCampaignIds))
+            ->select('campaigns.*')
+            ->selectRaw('(COALESCE(pv.cnt, 0) + COALESCE(ck.cnt, 0)) AS engagement')
+            ->orderByDesc('engagement')
+            ->orderBy('campaigns.id')
+            ->first();
+
+        return $unused ?: $this->pickTopImportedCampaignForBrand($brand);
+    }
+
+    /**
+     * Cửa hàng đủ điều kiện viết blog intro (có campaign + affiliate URL), tách đã có / chưa có bài.
+     *
+     * @return array{with: \Illuminate\Support\Collection<int, Brand>, without: \Illuminate\Support\Collection<int, Brand>}
+     */
+    public function storeIntroCoverage(): array
+    {
+        $eligible = Brand::query()
+            ->whereExists(function ($q): void {
+                $q->select(DB::raw(1))
+                    ->from('campaigns')
+                    ->whereColumn('campaigns.brand_id', 'brands.id')
+                    ->whereNull('campaigns.deleted_at')
+                    ->whereNotNull('campaigns.affiliate_url')
+                    ->where('campaigns.affiliate_url', '!=', '');
+                if (app()->environment('production')) {
+                    $q->where('campaigns.status', 'active');
+                }
+            })
+            ->orderBy('name')
+            ->get(['id', 'name', 'domain']);
+
+        $brandIdsWithBlog = $this->brandIdsThatHaveStoreIntroBlog();
+
+        return [
+            'with' => $eligible->filter(fn (Brand $b): bool => in_array((int) $b->id, $brandIdsWithBlog, true))->values(),
+            'without' => $eligible->reject(fn (Brand $b): bool => in_array((int) $b->id, $brandIdsWithBlog, true))->values(),
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function brandIdsThatHaveStoreIntroBlog(): array
+    {
+        return DB::table('blogs')
+            ->join('campaigns', 'campaigns.id', '=', 'blogs.campaign_id')
+            ->where('blogs.intro_type', 'store')
+            ->whereNull('blogs.deleted_at')
+            ->whereNotNull('campaigns.brand_id')
+            ->distinct()
+            ->pluck('campaigns.brand_id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    public function brandHasStoreIntroBlog(Brand $brand): bool
+    {
+        return Blog::query()
+            ->where('intro_type', 'store')
+            ->whereHas('campaign', fn ($q) => $q->where('brand_id', $brand->id))
+            ->exists();
+    }
 }
